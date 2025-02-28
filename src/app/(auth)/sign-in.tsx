@@ -1,136 +1,261 @@
+import * as React from 'react'
+import { Text, TextInput, TouchableOpacity, View, StyleSheet, Animated, Image, Alert } from 'react-native'
 import { useSignIn } from '@clerk/clerk-expo'
-import { Link, useRouter } from 'expo-router'
-import { Text, TextInput, TouchableOpacity, View, StyleSheet } from 'react-native'
-import React from 'react'
-import { Colors } from '../../constants/Colors';
+import { useRouter, Link } from 'expo-router'
+import { Colors } from '../../constants/Colors'
+import { LinearGradient } from 'expo-linear-gradient'
+import { MaterialIcons } from '@expo/vector-icons'
 
-export default function Page() {
-  const { signIn, setActive, isLoaded } = useSignIn()
-  const router = useRouter()
-
-  const [emailAddress, setEmailAddress] = React.useState('')
-  const [password, setPassword] = React.useState('')
-
-  // Handle the submission of the sign-in form
-  const onSignInPress = React.useCallback(async () => {
-    if (!isLoaded) return
-
-    // Start the sign-in process using the email and password provided
-    try {
-      const signInAttempt = await signIn.create({
-        identifier: emailAddress,
-        password,
-      })
-
-      // If sign-in process is complete, set the created session as active
-      // and redirect the user
-      if (signInAttempt.status === 'complete') {
-        await setActive({ session: signInAttempt.createdSessionId })
-        router.replace('/')
-      } else {
-        // If the status isn't complete, check why. User might need to
-        // complete further steps.
-        console.error(JSON.stringify(signInAttempt, null, 2))
-      }
-    } catch (err) {
-      // See https://clerk.com/docs/custom-flows/error-handling
-      // for more info on error handling
-      console.error(JSON.stringify(err, null, 2))
+// Helper function to validate email format
+const isValidEmail = (email: string): boolean => {
+    if (!email.includes('@')) {
+        return false;
     }
-  }, [isLoaded, emailAddress, password])
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+}
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.title}>Log In</Text>
-        <TextInput
-          style={styles.input}
-          autoCapitalize="none"
-          value={emailAddress}
-          placeholder="Email"
-          placeholderTextColor={Colors.textSecondary}
-          onChangeText={(emailAddress) => setEmailAddress(emailAddress)}
-        />
-        <TextInput
-          style={styles.input}
-          value={password}
-          placeholder="Password"
-          placeholderTextColor={Colors.textSecondary}
-          secureTextEntry={true}
-          onChangeText={(password) => setPassword(password)}
-        />
-        <TouchableOpacity style={styles.button} onPress={onSignInPress}>
-          <Text style={styles.buttonText}>Log In</Text>
-        </TouchableOpacity>
-        
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>New to Reddit?</Text>
-          <Link href="/sign-up" asChild>
-            <TouchableOpacity>
-              <Text style={styles.link}>Sign Up</Text>
-            </TouchableOpacity>
-          </Link>
+// Helper function to validate username format (alphanumeric and underscores)
+const isValidUsername = (username: string): boolean => {
+    const usernameRegex = /^[a-zA-Z0-9_]+$/
+    return usernameRegex.test(username)
+}
+
+export default function SignInScreen() {
+    const { isLoaded, signIn, setActive } = useSignIn()
+    const router = useRouter()
+
+    const [identifier, setIdentifier] = React.useState('')
+    const [password, setPassword] = React.useState('')
+    const [showPassword, setShowPassword] = React.useState(false)
+    const [loading, setLoading] = React.useState(false)
+
+    // Animation values
+    const fadeAnim = React.useRef(new Animated.Value(0)).current
+    const slideAnim = React.useRef(new Animated.Value(50)).current
+
+    React.useEffect(() => {
+        // Start animations when component mounts
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 800,
+                useNativeDriver: true,
+            }),
+            Animated.timing(slideAnim, {
+                toValue: 0,
+                duration: 800,
+                useNativeDriver: true,
+            })
+        ]).start()
+    }, [])
+
+    // Handle sign-in with email or username and password
+    const onSignInPress = async () => {
+        if (!isLoaded) {
+            return
+        }
+
+        // Validation for identifier
+        if (!identifier) {
+            Alert.alert("Error", "Please enter your email or username.")
+            return
+        }
+
+        if (!isValidEmail(identifier) && !isValidUsername(identifier)) {
+            Alert.alert("Error", "Please enter a valid email or username.")
+            return
+        }
+
+        setLoading(true)
+        try {
+            const completeSignIn = await signIn.create({
+                identifier,
+                password,
+            })
+
+            // This indicates the user is signed in
+            await setActive({ session: completeSignIn.createdSessionId })
+            router.replace('/')
+        } catch (err) {
+            console.error(JSON.stringify(err, null, 2))
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    return (
+        <View style={styles.container}>
+            <Animated.View
+                style={[
+                    styles.card,
+                    { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
+                ]}
+            >
+                <Image
+                    source={{ uri: 'https://www.redditstatic.com/desktop2x/img/snoo_discovery.png' }}
+                    style={styles.logo}
+                    resizeMode="contain"
+                />
+                <Text style={styles.title}>Welcome Back</Text>
+                <Text style={styles.subtitle}>Log in to your Reddit Clone account</Text>
+
+                <View style={styles.inputContainer}>
+                    <MaterialIcons name="person" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+                    <TextInput
+                        style={styles.input}
+                        autoCapitalize="none"
+                        value={identifier}
+                        placeholder="Email or Username"
+                        placeholderTextColor={Colors.textSecondary}
+                        onChangeText={(text) => setIdentifier(text)}
+                    />
+                </View>
+
+                <View style={styles.inputContainer}>
+                    <MaterialIcons name="lock" size={20} color={Colors.textSecondary} style={styles.inputIcon} />
+                    <TextInput
+                        style={[styles.input, { flex: 1 }]}
+                        value={password}
+                        placeholder="Password"
+                        placeholderTextColor={Colors.textSecondary}
+                        secureTextEntry={!showPassword}
+                        onChangeText={(password) => setPassword(password)}
+                    />
+                    <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
+                        <MaterialIcons
+                            name={showPassword ? "visibility" : "visibility-off"}
+                            size={20}
+                            color={Colors.textSecondary}
+                        />
+                    </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                    style={[styles.button, loading && styles.buttonDisabled]}
+                    onPress={onSignInPress}
+                    disabled={loading}
+                >
+                    <LinearGradient
+                        colors={[Colors.primary, '#FF6C44']}
+                        style={styles.gradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                    >
+                        <Text style={styles.buttonText}>
+                            {loading ? 'Signing in...' : 'Sign In'}
+                        </Text>
+                    </LinearGradient>
+                </TouchableOpacity>
+
+                <View style={styles.footer}>
+                    <Text style={styles.footerText}>Don't have an account?</Text>
+                    <Link href="/sign-up" asChild>
+                        <TouchableOpacity>
+                            <Text style={styles.link}>Sign Up</Text>
+                        </TouchableOpacity>
+                    </Link>
+                </View>
+            </Animated.View>
         </View>
-      </View>
-    </View>
-  )
+    )
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-    padding: 20,
-    justifyContent: 'center',
-  },
-  card: {
-    backgroundColor: Colors.background,
-    padding: 20,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: Colors.text,
-    marginBottom: 20,
-  },
-  input: {
-    backgroundColor: Colors.inputBackground,
-    padding: 15,
-    borderRadius: 4,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  button: {
-    backgroundColor: Colors.primary,
-    padding: 15,
-    borderRadius: 25,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  buttonText: {
-    color: Colors.background,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 20,
-    gap: 5,
-  },
-  footerText: {
-    color: Colors.textSecondary,
-  },
-  link: {
-    color: Colors.primary,
-    fontWeight: '600',
-  },
+    container: {
+        flex: 1,
+        padding: 20,
+        justifyContent: 'center',
+        backgroundColor: Colors.background,
+    },
+    card: {
+        backgroundColor: Colors.inputBackground,
+        padding: 25,
+        borderRadius: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 5 },
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 8,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: Colors.border,
+    },
+    logo: {
+        width: 80,
+        height: 80,
+        marginBottom: 20,
+    },
+    title: {
+        fontSize: 26,
+        fontWeight: 'bold',
+        color: Colors.text,
+        marginBottom: 8,
+        textAlign: 'center',
+    },
+    subtitle: {
+        fontSize: 14,
+        color: Colors.textSecondary,
+        marginBottom: 24,
+        textAlign: 'center',
+    },
+    inputContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Colors.background,
+        borderRadius: 12,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: Colors.border,
+        paddingHorizontal: 15,
+        height: 55,
+        width: '100%',
+    },
+    inputIcon: {
+        marginRight: 10,
+    },
+    eyeIcon: {
+        padding: 10,
+    },
+    input: {
+        flex: 1,
+        color: Colors.text,
+        fontSize: 16,
+        height: '100%',
+    },
+    button: {
+        width: '100%',
+        borderRadius: 25,
+        overflow: 'hidden',
+        marginTop: 10,
+        height: 55,
+    },
+    buttonDisabled: {
+        opacity: 0.7,
+    },
+    gradient: {
+        width: '100%',
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    buttonText: {
+        color: Colors.background,
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    footer: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: 25,
+        gap: 5,
+    },
+    footerText: {
+        color: Colors.textSecondary,
+    },
+    link: {
+        color: Colors.primary,
+        fontWeight: '600',
+    },
 })
